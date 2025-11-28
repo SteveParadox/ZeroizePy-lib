@@ -176,6 +176,7 @@ MIT License © Ordu Stephen Chinedu
 
 ## Links
 
-- **Homepage:** [https://github.com/yourname/securewipe](https://github.com/yourname/securewipe)  
-- **Documentation:** [https://github.com/yourname/securewipe](https://github.com/yourname/securewipe)  
-- **Repository:** [https://github.com/yourname/securewipe](https://github.com/yourname/securewipe)
+- **Homepage:** [https://github.com/yourname/securewipe](https://github.com/xavenordu/Xavpy-library)  
+- **Documentation:** [https://github.com/yourname/securewipe](https://github.com/xavenordu/Xavpy-library)  
+- **Repository:** [https://github.com/yourname/securewipe](https://github.com/xavenordu/Xavpy-library)
+
