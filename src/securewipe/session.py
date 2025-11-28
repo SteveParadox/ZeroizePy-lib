@@ -35,14 +35,22 @@ class SecureSession:
     def create_temp_file(self, suffix: str = "", prefix: str = "tmp", dir: str | None = None) -> Path:
         """
         Create a temporary file and track it for secure deletion on exit.
-        File permissions are restricted (0600) for security.
+        File permissions are restricted (0600) on POSIX systems.
         """
         fd, path = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=dir)
-        os.fchmod(fd, 0o600)  # restrict permissions to owner read/write
+
+        # POSIX: restrict permissions to owner read/write
+        if os.name != "nt":
+            try:
+                os.fchmod(fd, 0o600)
+            except AttributeError:
+                # fallback if fchmod is unavailable
+                os.chmod(path, 0o600)
+
         os.close(fd)  # Close immediately; user can open manually
         p = Path(path)
         self._temp_files.append(p)
-        logger.debug("Created temporary file %s with 0600 permissions", p)
+        logger.debug("Created temporary file %s with restricted permissions", p)
         return p
 
     def create_secret(self, data: bytes) -> SecureMemory:

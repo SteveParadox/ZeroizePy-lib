@@ -23,12 +23,12 @@ classifiers = [
 
 # Mandatory runtime dependencies
 dependencies = [
-    "psutil>=5.9.0",  # for device detection, memory info
+    "psutil>=5.9.0"
 ]
 
 # Optional dependencies
 [project.optional-dependencies]
-crypto = ["pynacl>=1.5.0"]  # libsodium/PyNaCl support
+crypto = ["pynacl>=1.5.0"]
 
 [project.urls]
 Homepage = "https://github.com/yourname/securewipe"
@@ -38,11 +38,9 @@ Repository = "https://github.com/yourname/securewipe"
 # setuptools-specific options
 [tool.setuptools]
 package-dir = { "" = "src" }
-packages = ["securewipe"]
 
-[tool.setuptools.package-data]
-securewipe = ["*.so", "*.dll"]  # placeholder for compiled extensions (e.g., C extension in future)
-
-# Optional: Include type hints if you add them
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+securewipe = ["*.so", "*.dll"]  # placeholder for compiled extensions

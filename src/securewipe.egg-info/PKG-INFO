@@ -1,3 +1,25 @@
+Metadata-Version: 2.4
+Name: securewipe
+Version: 0.1.0
+Summary: A Python library for secure file deletion, in-memory secret handling, and cryptographic erasure.
+Home-page: https://github.com/yourname/securewipe
+Author: Ordu Stephen Chinedu
+Author-email: Ordu Stephen Chinedu <fordstphn@gmail.com>
+Project-URL: Homepage, https://github.com/yourname/securewipe
+Project-URL: Documentation, https://github.com/yourname/securewipe
+Project-URL: Repository, https://github.com/yourname/securewipe
+Keywords: security,privacy,encryption,secure deletion,data sanitization
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Topic :: Security :: Cryptography
+Classifier: Topic :: System :: Archiving
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: psutil>=5.9.0
+Provides-Extra: crypto
+Requires-Dist: pynacl>=1.5.0; extra == "crypto"
+
 
 # securewipe
 
