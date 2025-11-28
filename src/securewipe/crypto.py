@@ -19,6 +19,8 @@ from .memory import SecureMemory
 from .utils import secure_clear
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -109,15 +111,35 @@ def decrypt_data(
     """
     Decrypt a buffer encrypted with encrypt_data().
 
-    Validates ciphertext length before decrypting.
+    Performs thorough validation:
+        - CipherText instance
+        - Nonce length
+        - Ciphertext length (must include AES-GCM tag, at least 16 bytes)
+    
+    Raises:
+        ValueError if ciphertext is invalid or decryption fails.
     """
     if not isinstance(ct, CipherText):
         raise TypeError("ct must be a CipherText instance")
-    if len(ct.nonce) != 12:
-        raise ValueError("Invalid nonce length")
-    aes = AESGCM(key.get_bytes())
-    plaintext = aes.decrypt(ct.nonce, ct.ciphertext, associated_data)
-    logger.debug("Decrypted data: %d bytes plaintext", len(plaintext))
+    
+    # AES-GCM standard nonce size
+    if not isinstance(ct.nonce, (bytes, bytearray)) or len(ct.nonce) != 12:
+        raise ValueError("Invalid nonce length, must be 12 bytes")
+    
+    if not isinstance(ct.ciphertext, (bytes, bytearray)):
+        raise TypeError("Ciphertext must be bytes-like")
+    
+    # AES-GCM authentication tag is 16 bytes
+    if len(ct.ciphertext) < 16:
+        raise ValueError("Ciphertext too short to be valid AES-GCM output")
+
+    try:
+        aes = AESGCM(key.get_bytes())
+        plaintext = aes.decrypt(ct.nonce, ct.ciphertext, associated_data)
+    except (InvalidTag, ValueError) as e:
+        # Wrap cryptography exceptions into a controlled error
+        raise ValueError("Invalid ciphertext or authentication failed") from e
+
     return plaintext
 
 

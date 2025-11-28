@@ -133,16 +133,23 @@ def test_decrypt_wrong_aad_fuzz(plaintext, wrong_aad):
     key.destroy()
     with pytest.raises(SecureMemoryClosed):
         key.get_bytes()
-        
+
 @pytest.mark.fuzz
 def test_decrypt_invalid_ct_fuzz():
     import logging
-    from securewipe.crypto import decrypt_data
+    logging.basicConfig(level=logging.INFO)
+    # Generate a dummy key
+    key = CryptoKey.generate()
 
-    invalid_ct = b"\x00\x01\x02"  # example invalid ciphertext
+    # Example invalid CipherText
+    invalid_ct = CipherText(nonce=b"\x00\x01", ciphertext=b"\x00\x01\x02")  # wrong nonce length and short ciphertext
+
     try:
-        decrypt_data(invalid_ct, b"dummy_key")
+        decrypt_data(invalid_ct, key)
     except Exception as e:
-        logging.error("Caught exception: %s %s", type(e), e)
-        # Optionally assert a specific exception type
+        logging.info("Caught exception: %s %s", type(e), e)
+        # Assert that the exception is ValueError (our hardened code)
         assert isinstance(e, ValueError)
+    else:
+        # If no exception is raised, the test should fail
+        assert False, "decrypt_data did not raise an exception for invalid ciphertext"
