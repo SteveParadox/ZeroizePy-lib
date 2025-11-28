@@ -1,7 +1,7 @@
 
-# securewipe
+# XAVPY
 
-**Securewipe** is a Python library for secure data deletion and in-memory secret handling.  
+**xavpy** is a Python library for secure data deletion and in-memory secret handling.  
 It provides **robust file shredding**, **secure memory allocation**, **cryptographic erasure**, and a **secure session manager** for temporary sensitive operations.
 
 ---
@@ -179,4 +179,5 @@ MIT License © Ordu Stephen Chinedu
 - **Homepage:** [https://github.com/yourname/securewipe](https://github.com/xavenordu/Xavpy-library)  
 - **Documentation:** [https://github.com/yourname/securewipe](https://github.com/xavenordu/Xavpy-library)  
 - **Repository:** [https://github.com/yourname/securewipe](https://github.com/xavenordu/Xavpy-library)
+
 
