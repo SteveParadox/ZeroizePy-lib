@@ -1,15 +1,13 @@
 # SecureWipe
 
-High-assurance secure deletion and secure memory handling for Python.
+High-assurance secure deletion, secure memory handling, and cryptographic erasure for Python.
 
----
-
-## Features
-
-* Cryptographic erasure utilities (`CryptoKey`, `encrypt_data`, `decrypt_data`, `cryptographic_erase_key`)
-* High-level `SecureMemory` API with locked memory and explicit zeroing
-* File wiping (`secure_delete`, `wipe_free_space`) with customizable patterns
-* Cross-platform support for Linux, macOS, and Windows
+SecureWipe provides a full suite of secure-by-design primitives:
+- Locked, zeroizable memory
+- File wiping & free-space wiping
+- Cryptographic erasure (destroy a key → destroy the data)
+- AES-GCM authenticated encryption helpers
+- Secure temporary sessions
 
 ---
 
@@ -21,9 +19,89 @@ pip install securewipe
 
 ---
 
-## Usage Examples
+# Quick Overview
 
-### Secure Memory
+SecureWipe provides three layers of protection:
+
+1. **Secure Memory**  
+   Data stored in locked RAM (`SecureMemory`), explicitly zeroized on close.
+
+2. **File Wiping**  
+   Multi-pass secure deletion and free-space wiping (`secure_delete()`, `wipe_free_space()`).
+
+3. **Cryptographic Erasure**  
+   AES-GCM encryption + key destruction (`CryptoKey`, `encrypt_data()`, `decrypt_data()`).
+
+---
+
+# Cryptography Module Examples
+
+## Generate a Key, Encrypt, Write Encrypted File, Securely Erase Plaintext
+
+```python
+from securewipe.crypto import CryptoKey, encrypt_data, decrypt_data, cryptographic_erase_key
+from securewipe.utils import secure_clear
+
+def demo():
+    # Generate AES-256 key stored in SecureMemory
+    key = CryptoKey.generate(32)
+
+    # Load plaintext into a mutable buffer
+    with open("secret.txt", "rb") as f:
+        plaintext = bytearray(f.read())
+
+    # Encrypt using AES-GCM
+    ct = encrypt_data(plaintext, key)
+
+    # Write encrypted bytes to disk
+    with open("secret.enc", "wb") as f:
+        f.write(ct.nonce + ct.ciphertext)
+
+    # Securely erase plaintext from RAM
+    secure_clear(plaintext)
+
+    # Demonstrate decryption while key still exists
+    recovered = decrypt_data(ct, key)
+    print("Recovered:", recovered.decode())
+
+    # Cryptographically erase data by destroying the key
+    cryptographic_erase_key(key)
+```
+
+---
+
+## Simple Encrypt/Decrypt With Additional Authenticated Data (AAD)
+
+```python
+from securewipe.crypto import CryptoKey, encrypt_data, decrypt_data
+
+key = CryptoKey.generate()
+
+pt = b"SENSITIVE-DATA"
+aad = b"context-info"
+
+ct = encrypt_data(pt, key, associated_data=aad)
+print("Ciphertext:", ct.ciphertext.hex())
+
+recovered = decrypt_data(ct, key, associated_data=aad)
+print("Recovered:", recovered)
+```
+
+---
+
+## Cryptographic Erasure Demonstration
+
+Once you call:
+
+```python
+key.destroy()
+```
+
+All data encrypted with that key becomes permanently lost, even if `secret.enc` still exists.
+
+---
+
+# Secure Memory Examples
 
 ```python
 from securewipe.memory import SecureMemory, secret_bytes
@@ -32,65 +110,129 @@ from securewipe.memory import SecureMemory, secret_bytes
 s = SecureMemory.alloc(32)
 s.write(b"supersecret")
 print(s.read(11))  # b'supersecret'
-s.zero()  # zero memory
+s.zero()
 s.close()
 
-# Using secret_bytes convenience helper
+# Convenience wrapper
 sec = secret_bytes(b"topsecret")
-print(sec.read(len(b"topsecret")))
+print(sec.read(9))
 sec.close()
 ```
 
-### File Deletion
+---
+
+# Secure File Wiping
 
 ```python
 from securewipe.file import secure_delete
 
-# Securely delete a file
-secure_delete("secret.txt", passes=3, pattern="random", dry_run=False)
+# Multi-pass overwrite + unlink
+secure_delete("secret.txt", passes=3, pattern="random")
+```
 
-# Wipe free space in a directory
+### Free-Space Wiping
+
+```python
 from securewipe.file import wipe_free_space
+
 wipe_free_space("/tmp", dry_run=True)
 ```
 
-### Secure Session
+---
+
+# Secure Session Usage
+
+Temporary secrets, temp files, and auto-cleanup:
 
 ```python
 from securewipe.session import SecureSession
 
 with SecureSession() as session:
-    temp_file = session.create_temp_file(suffix=".txt")
+    temp_file = session.create_temp_file(".txt")
     secret = session.create_secret(b"password123")
+
     with open(temp_file, "wb") as f:
         f.write(secret.get_bytes())
-# Temp files are removed, secret memory zeroed automatically
+
+# On exit:
+# - Secret wiped
+# - Temp files securely deleted
 ```
 
 ---
 
-## Limitations & Cross-Platform Notes
+# Limitations & Important Security Notes
 
-| Feature                        | POSIX (Linux/macOS)                            | Windows                                                                        |
-| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------ |
-| Symlink Handling               | Fully supported; `follow_symlinks` honored     | Some behaviors differ; tests skipped where behavior differs                    |
-| Sparse File Detection          | Heuristics applied                             | Sparse heuristics differ; warnings may differ                                  |
-| `chmod(0)` & Permission Errors | Enforced; deletion may raise `FileAccessError` | Behavior differs; some tests skipped                                           |
-| SecureMemory Zeroing           | Zeroing observable in tests                    | Observing zeroing is unreliable due to Python memory copies and OS protections |
+## Python Object Copies
+Python duplicates immutable objects (`bytes`, `str`), which cannot be securely zeroed.
 
-**Important Notes:**
-
-* Avoid exposing raw Python bytes from `SecureMemory` (`get_bytes()`), as Python copies cannot be securely zeroed.
-* Always use the `close()` or context manager to guarantee memory zeroing.
+To minimize exposure:
+- Prefer `bytearray` or `memoryview`
+- Avoid long-lived plaintext copies
+- Minimize use of `.get_bytes()` on `CryptoKey` or `SecureMemory`
 
 ---
 
-## Testing
+## Libsodium Recommended
+If available, SecureWipe uses libsodium’s hardened memory primitives:
+- `sodium_malloc()` guarded pages
+- `sodium_mlock()` secure locking
+- `sodium_memzero()`
 
-Run the full test suite with:
+Install on Linux:
+
+```bash
+sudo apt install libsodium23 libsodium-dev
+```
+
+---
+
+## Windows Memory-Locking Limitations
+Windows has no true mlock equivalent.
+
+Fallback behavior:
+- Memory is zeroed properly
+- Pages cannot be made non-swappable at the OS level
+- Installing libsodium on Windows improves security
+
+---
+
+## Garbage Collector Timing
+Python’s garbage collector may temporarily hold:
+- Intermediate buffers
+- Copies made by internal operations
+- Bytes objects created implicitly
+
+Mitigation:
+- Use `bytearray` for plaintext
+- Avoid converting secrets to `str`
+- Keep sensitive data in secure buffers
+
+---
+
+## System Privileges for Locked Memory
+Some OSes restrict locked memory usage.
+
+Linux may require:
+
+```bash
+ulimit -l
+```
+
+Increase if needed.
+
+---
+
+# Testing
 
 ```bash
 pytest
 ```
 
-Some tests are skipped on Windows due to OS-specific behavior.
+Some tests are skipped on Windows due to OS behavior differences.
+
+---
+
+# License
+
+MIT License — free for commercial use, open-source projects, academic work, and integration into products.
