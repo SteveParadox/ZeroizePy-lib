@@ -136,9 +136,20 @@ with SecureSession() as session:
 # On exit: memory zeroed, temp files deleted
 ```
 
+
 ---
 
 # Limitations & Security Notes
+
+## Cross-Platform Notes
+
+| Feature                        | POSIX (Linux/macOS)                            | Windows                                                                        |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| Symlink Handling               | Fully supported; `follow_symlinks` honored     | Some behaviors differ; tests skipped where behavior differs                    |
+| Sparse File Detection          | Heuristics applied                             | Sparse heuristics differ; warnings may differ                                  |
+| `chmod(0)` & Permission Errors | Enforced; deletion may raise `FileAccessError` | Behavior differs; some tests skipped                                           |
+| SecureMemory Zeroing           | Zeroing observable in tests                    | Observing zeroing is unreliable due to Python memory copies and OS protections |
+
 
 * **Python Object Copies:** Immutable objects (`bytes`, `str`) cannot be zeroed. Prefer `bytearray` or `memoryview`.
 * **Libsodium Recommended:** Provides guarded pages and secure memory locking. Fallback works but less secure.
@@ -147,6 +158,12 @@ with SecureSession() as session:
 * **System Privileges:** Some OSes limit locked memory usage (e.g., `ulimit -l` on Linux).
 * **File System Limitations:** Overwriting may not fully erase data on COW filesystems (btrfs, ZFS, snapshots) or SSDs. Consider crypto-erase.
 * **OS-Level Erase:** `os_erase` functions are dangerous; use manually only with full understanding.
+
+
+**Important Notes:**
+
+* Avoid exposing raw Python bytes from `SecureMemory` (`get_bytes()`), as Python copies cannot be securely zeroed.
+* Always use the `close()` or context manager to guarantee memory zeroing.
 
 ---
 
