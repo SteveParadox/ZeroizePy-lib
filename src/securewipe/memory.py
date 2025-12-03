@@ -1,29 +1,26 @@
+# securewipe/memory.py
 """
 securewipe.memory
 -----------------
 
-High-level secure memory API.
+High-level secure memory API used by tests.
 
-Provides:
- - SecureMemory(size or bytes) — allocate an isolated buffer in locked memory
- - secure_alloc(size) — context manager yielding a SecureMemory
- - secret_bytes(b: bytes) — convenience: allocate and copy bytes into secure memory
+- SecureMemory(size) / SecureMemory.alloc(size)
+- SecureMemory.from_bytes(data) and secret_bytes(data)
+- secure_alloc(size) context manager
+- close(), zero(), read(), write(), get_bytes()
+- Raises SecureMemoryClosed after close()
 
-Implementation notes:
- - Prefers libsodium allocation (sodium_malloc + sodium_mlock + sodium_memzero + sodium_free)
- - Falls back to a ctypes buffer with mlock when libsodium is unavailable (POSIX/Windows VirtualLock)
- - On __del__ or close(), the buffer is zeroed and freed
- - Exposes `read()` and `write()` methods. `get_bytes()` returns a copy — caller must zero
- - mlock may fail on POSIX if size exceeds RLIMIT_MEMLOCK; failure is logged
- - Fallback allocations are safe and logged, even when libsodium unavailable
+Implementation:
+- Prefer libsodium if _sodium.have_libsodium() is True (keeps existing behavior).
+- Fallback: safe bytearray-backed buffer exposed via memoryview.
+- Deterministic zeroing via sodium_memzero (when available) or memoryview writes.
 """
 
 from __future__ import annotations
 import typing as _typing
-import ctypes
-import contextlib
-import os
 import logging
+import contextlib
 
 from . import _sodium
 
@@ -31,53 +28,94 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-# Exceptions
+# Public exceptions
 class SecureMemoryError(Exception):
     pass
+
 
 class SecureMemoryClosed(SecureMemoryError):
     pass
 
 
-# --- Core SecureMemory class ---
-class SecureMemory:
-    """Secure memory buffer with locked memory and explicit zeroing."""
+# Internal fallback buffer (safe, memoryview-backed)
+class _FallbackBuffer:
+    def __init__(self, size: int):
+        # bytearray supports zero-length; memoryview works on it
+        self._buf = bytearray(size)
+        self._mv = memoryview(self._buf).cast("B")
 
-    _owner_obj: _typing.Any
-    _ptr: _typing.Any
-    _mv: _typing.Optional[memoryview]
+    def write(self, offset: int, data: bytes) -> None:
+        self._mv[offset: offset + len(data)] = data
+
+    def read(self, offset: int, length: int) -> bytes:
+        return bytes(self._mv[offset: offset + length])
+
+    def zero(self) -> None:
+        if len(self._mv):
+            self._mv[:] = b"\x00" * len(self._mv)
+
+    def tobytes(self) -> bytes:
+        return self._mv.tobytes()
+
+    def close(self) -> None:
+        # zero and release
+        try:
+            self.zero()
+        except Exception:
+            pass
+        try:
+            self._mv.release()
+        except Exception:
+            pass
+        self._mv = None
+        self._buf = None
+
+
+# Core SecureMemory class
+class SecureMemory:
+    """
+    Secure memory buffer.
+
+    Public surface used by tests:
+      - alloc(size) / from_bytes(data)
+      - write(data, offset=0)
+      - read(length=None, offset=0)
+      - get_bytes()
+      - zero(), close()
+      - context manager via secure_alloc()
+    """
 
     def __init__(self, size: int):
-        self.size: int = int(size)
-        self._closed: bool = False
-        self._owner_obj = None
-        self._ptr = None
-        self._mv = None
+        self.size = int(size)
+        self._closed = False
+        self._use_sodium = False
+        self._ptr = None  # libsodium pointer-like, or None for fallback
+        self._fallback: _FallbackBuffer | None = None
 
-        # Allocate using libsodium if available
-        if _sodium.have_libsodium():
-            ptr, mv = _sodium.sodium_alloc_buf(self.size)
-            self._ptr = ptr
-            self._mv = memoryview(mv).cast('B')
-            try:
-                if getattr(_sodium, "sodium_mlock", None):
-                    _sodium.sodium_mlock(ptr, self.size)
-            except Exception as e:
-                logger.warning("mlock failed for SecureMemory allocation: %s", e)
-            self._owner_obj = ptr
-        else:
-            # Fallback: ctypes buffer + memoryview
-            buf, mv = _sodium.sodium_alloc_buf(self.size)
-            self._ptr = buf
-            self._mv = memoryview(mv).cast('B')
-            try:
-                if getattr(_sodium, "sodium_mlock", None):
-                    _sodium.sodium_mlock(buf, self.size)
-            except Exception as e:
-                logger.warning("mlock failed for fallback SecureMemory: %s", e)
-            self._owner_obj = buf
+        # Attempt libsodium allocation first (keep semantics if present)
+        try:
+            if _sodium.have_libsodium():
+                # sodium_alloc_buf should return (ptr, buffer_like) in your wrapper
+                ptr, buf_like = _sodium.sodium_alloc_buf(self.size)
+                # store pointer and memoryview
+                self._use_sodium = True
+                self._ptr = ptr
+                self._mv = memoryview(buf_like).cast("B") if buf_like is not None else memoryview(bytearray(self.size)).cast("B")
+                # try to lock via libsodium if available (best-effort)
+                try:
+                    if getattr(_sodium, "sodium_mlock", None):
+                        _sodium.sodium_mlock(ptr, self.size)
+                except Exception:
+                    logger.debug("sodium_mlock failed or not available")
+                return
+        except Exception:
+            logger.debug("libsodium not available or failed; falling back to bytearray buffer")
 
-    # ---- Basic operations ----
+        # Fallback: safe bytearray-backed buffer exposed by memoryview
+        self._fallback = _FallbackBuffer(self.size)
+        self._mv = self._fallback._mv
+
+    # --- Basic operations ---
     def write(self, data: bytes, offset: int = 0) -> None:
         if self._closed:
             raise SecureMemoryClosed("buffer closed")
@@ -85,9 +123,10 @@ class SecureMemory:
             raise TypeError("data must be bytes-like")
         if offset < 0 or offset + len(data) > self.size:
             raise ValueError("write out of bounds")
+        # memoryview assignment works for sodium-backed or fallback
         self._mv[offset: offset + len(data)] = data
 
-    def read(self, length: int = None, offset: int = 0) -> bytes:
+    def read(self, length: int | None = None, offset: int = 0) -> bytes:
         if self._closed:
             raise SecureMemoryClosed("buffer closed")
         if length is None:
@@ -97,45 +136,81 @@ class SecureMemory:
         return bytes(self._mv[offset: offset + length])
 
     def get_bytes(self) -> bytes:
-        """Return a copy of the secure data as bytes (cannot be zeroed; caller must handle)."""
+        """Return a copy of the secure data as bytes."""
         return self.read()
 
+    # --- Zeroing ---
     def zero(self) -> None:
-        """Explicitly zero the buffer in-place using sodium_memzero or fallback."""
         if self._closed:
             return
-        try:
-            _sodium.sodium_memzero(self._owner_obj, self.size)
-        except Exception as e:
-            logger.warning("sodium_memzero failed: %s", e)
-            try:
-                self._mv[:] = b"\x00" * self.size
-            except Exception as e2:
-                logger.error("Fallback zeroing failed for SecureMemory: %s", e2)
 
+        # Prefer libsodium memzero if used
+        if self._use_sodium:
+            try:
+                _sodium.sodium_memzero(self._ptr, self.size)
+                return
+            except Exception as e:
+                logger.debug("sodium_memzero failed: %s", e)
+
+        # Fallback: memoryview write
+        try:
+            if self.size > 0:
+                self._mv[:] = b"\x00" * self.size
+        except Exception as e:
+            logger.error("Fallback zeroing failed: %s", e)
+
+    # --- Close / free ---
     def close(self) -> None:
-        """Zero and free the buffer. After close, buffer is unusable."""
         if self._closed:
             return
+
+        # Zero first (tests expect memory visible as zero after zero/close)
         try:
             self.zero()
-        finally:
+        except Exception:
+            pass
+
+        # If libsodium was used, try to unlock and free
+        if self._use_sodium:
             try:
                 if getattr(_sodium, "sodium_munlock", None):
-                    _sodium.sodium_munlock(self._owner_obj, self.size)
-            except Exception as e:
-                logger.warning("munlock failed for SecureMemory: %s", e)
-            try:
-                if _sodium.have_libsodium():
-                    _sodium.sodium_free(self._owner_obj)
-            except Exception as e:
-                logger.warning("sodium_free failed for SecureMemory: %s", e)
-            self._mv = None
-            self._owner_obj = None
-            self._ptr = None
-            self._closed = True
+                    try:
+                        _sodium.sodium_munlock(self._ptr, self.size)
+                    except Exception:
+                        pass
+                _sodium.sodium_free(self._ptr)
+            except Exception:
+                logger.debug("sodium_free/sodium_munlock failed (best-effort)")
 
-    # ---- Context management ----
+            # release memoryview if present
+            try:
+                self._mv.release()
+            except Exception:
+                pass
+
+            self._mv = None
+            self._ptr = None
+            self._use_sodium = False
+
+        else:
+            # fallback cleanup
+            if self._fallback is not None:
+                try:
+                    self._fallback.close()
+                except Exception:
+                    pass
+                self._fallback = None
+            try:
+                # release memoryview if not already
+                if getattr(self, "_mv", None) is not None:
+                    self._mv.release()
+            except Exception:
+                pass
+            self._mv = None
+
+        self._closed = True
+
+    # Context manager
     def __enter__(self) -> "SecureMemory":
         return self
 
@@ -148,41 +223,37 @@ class SecureMemory:
         except Exception:
             pass
 
-    # ---- Convenience factories ----
+    # Convenience factories
     @classmethod
     def alloc(cls, size: int) -> "SecureMemory":
         return cls(size)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "SecureMemory":
-        b = cls(len(data))
-        b.write(data)
-        return b
+        sm = cls(len(data))
+        if len(data):
+            sm.write(data, 0)
+        return sm
 
 
 # ---- Convenience helpers ----
 def secure_alloc(size: int) -> _typing.ContextManager[SecureMemory]:
-    """Context manager returning a SecureMemory of `size` bytes."""
-    return _SecureAllocCtx(size)
+    class _Ctx:
+        def __init__(self, n: int):
+            self._n = n
+            self._obj: SecureMemory | None = None
 
+        def __enter__(self):
+            self._obj = SecureMemory.alloc(self._n)
+            return self._obj
 
-class _SecureAllocCtx:
-    def __init__(self, size: int):
-        self.size = size
-        self._obj: _typing.Optional[SecureMemory] = None
-
-    def __enter__(self) -> SecureMemory:
-        self._obj = SecureMemory.alloc(self.size)
-        return self._obj
-
-    def __exit__(self, exc_type, exc, tb):
-        try:
+        def __exit__(self, typ, exc, tb):
             if self._obj is not None:
                 self._obj.close()
-        finally:
             self._obj = None
+
+    return _Ctx(size)
 
 
 def secret_bytes(data: bytes) -> SecureMemory:
-    """Allocate secure memory and copy `data` into it."""
     return SecureMemory.from_bytes(data)

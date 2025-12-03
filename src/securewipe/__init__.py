@@ -30,7 +30,7 @@ __all__ = ["secure_delete",
                 ]
 
 __all__.extend(["encrypt", "decrypt", "destroy_key", "secure_session"])
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Ordu Stephen Chinedu"
 __license__ = "MIT"
 __copyright__ = "2024 Ordu Stephen Chinedu"
