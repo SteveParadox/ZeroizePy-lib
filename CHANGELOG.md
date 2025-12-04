@@ -8,7 +8,7 @@ The format is based on **Keep a Changelog**, and this project adheres to **Seman
 
 ## **[1.0.0] – 2025-12-04**
 ### Added
-- Initial stable release of **SecureWipe**.
+- Initial stable release of **zeroizepy**.
 - **SecureMemory**: locked, zeroizable memory regions with optional libsodium backend.
 - **secret_bytes()** helper for secure byte storage.
 - **CryptoKey** with AES-GCM authenticated encryption and decryption.
