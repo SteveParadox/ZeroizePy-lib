@@ -1,6 +1,6 @@
 # CHANGELOG
 
-All notable changes to **SecureWipe** will be documented in this file.
+All notable changes to **zeroizepy** will be documented in this file.
 
 The format is based on **Keep a Changelog**, and this project adheres to **Semantic Versioning**.
 
