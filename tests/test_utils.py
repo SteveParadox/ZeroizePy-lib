@@ -1,5 +1,5 @@
 import pytest
-from securewipe.utils import secure_compare, secure_clear
+from zeroizepy.utils import secure_compare, secure_clear
 
 def test_secure_compare_equal():
     a = b"secret123"
@@ -30,3 +30,4 @@ def test_secure_clear_memoryview():
 def test_secure_clear_invalid_type():
     with pytest.raises(TypeError):
         secure_clear(b"bytes")  # immutable bytes should raise
+
