@@ -1,8 +1,8 @@
-# SecureWipe
+# ZeroizePy
 
 High-assurance secure deletion, secure memory handling and cryptographic erasure for Python.
 
-SecureWipe provides a modern, cross-platform suite of primitives for handling sensitive data safely.
+ZeroizePy provides a modern, cross-platform suite of primitives for handling sensitive data safely.
 It is designed for applications that require defense-in-depth: password managers, HSM glue code, data-at-rest protection, secure messaging and high-security Python systems.
 
 It includes:
@@ -18,14 +18,31 @@ It includes:
 ## Installation
 
 ```bash
-pip install securewipe
+pip install zeroizepy
+```
+
+---
+
+# Quick Start (Hello World)
+
+```python
+from zeroizepy.file import secure_delete
+from zeroizepy.crypto import CryptoKey, encrypt_data
+
+# Securely delete a file
+secure_delete("secret.txt", passes=3)
+
+# Encrypt something with a secure key
+key = CryptoKey.generate(32)
+ct = encrypt_data(b"hello world", key)
+print("Encrypted:", ct.ciphertext.hex())
 ```
 
 ---
 
 # Overview of Protection Layers
 
-SecureWipe implements five protection layers:
+ZeroizePy implements five protection layers:
 
 1. **Secure Memory**
    * Explicitly zeroizable buffers
@@ -33,28 +50,24 @@ SecureWipe implements five protection layers:
    * Safe handling for sensitive in-process secrets
    * Guaranteed wipe on .close() or context exit
 
-3. **File Wiping**
-
-   * Multi-pass secure deletion: random or fixed patterns (`secure_delete()`).
+2. **File Wiping**
+   * Multi-pass secure deletion: random or fixed patterns (`secure_delete()`)
    * Full overwrite of file contents before unlinking
-   * Free-space wiping (`wipe_free_space()`) to overwrite unallocated disk blocks.
+   * Free-space wiping (`wipe_free_space()`) to overwrite unallocated disk blocks
    * Symlink-aware deletion controls
 
-4. **Cryptographic Erasure**
-
-   * AES-GCM encryption with authenticated metadata (`CryptoKey`).
+3. **Cryptographic Erasure**
+   * AES-GCM encryption with authenticated metadata (`CryptoKey`)
    * `CryptoKey` objects that can be destroyed in memory
-   * Destroy the key → all encrypted data irreversibly lost.
+   * Destroy the key → all encrypted data irreversibly lost
    * Designed for SSDs, COW filesystems, and other overwrite-hostile storage
 
-5. **Secure Temporary Sessions**
-
-   * `SecureSession` tracks temporary files, memory regions and secrets.
-   * Automatically zeroes memory and deletes files on exit.
+4. **Secure Temporary Sessions**
+   * `SecureSession` tracks temporary files, memory regions and secrets
+   * Automatically zeroes memory and deletes files on exit
    * Ideal for one-shot secure operations
 
-6. **OS-Level Erase Wrappers (Advanced)**
-
+5. **OS-Level Erase Wrappers (Advanced)**
    * Interfaces for: hdparm, NVMe Secure Erase, APFS diskutil, BitLocker
    * Extremely dangerous and destructive if misused — disabled by default
    * Intended for expert operators only
@@ -68,8 +81,8 @@ SecureWipe implements five protection layers:
 ### Generate Key, Encrypt, and Cryptographically Erase
 
 ```python
-from securewipe.crypto import CryptoKey, encrypt_data, decrypt_data, cryptographic_erase_key
-from securewipe.utils import secure_clear
+from zeroizepy.crypto import CryptoKey, encrypt_data, decrypt_data, cryptographic_erase_key
+from zeroizepy.utils import secure_clear
 
 key = CryptoKey.generate(32)
 
@@ -106,7 +119,7 @@ print(recovered)
 ## Secure Memory
 
 ```python
-from securewipe.memory import SecureMemory, secret_bytes
+from zeroizepy.memory import SecureMemory, secret_bytes
 
 s = SecureMemory.alloc(32)
 s.write(b"supersecret")
@@ -124,7 +137,7 @@ sec.close()
 ## File Wiping
 
 ```python
-from securewipe.file import secure_delete, wipe_free_space
+from zeroizepy.file import secure_delete, wipe_free_space
 
 secure_delete("secret.txt", passes=3, pattern="random")
 wipe_free_space("/tmp", dry_run=True)
@@ -135,7 +148,7 @@ wipe_free_space("/tmp", dry_run=True)
 ## Secure Session
 
 ```python
-from securewipe.session import SecureSession
+from zeroizepy.session import SecureSession
 
 with SecureSession() as session:
     temp_file = session.create_temp_file(".txt")
@@ -145,7 +158,6 @@ with SecureSession() as session:
         f.write(secret.get_bytes())
 # On exit: memory zeroed, temp files deleted
 ```
-
 
 ---
 
@@ -157,47 +169,46 @@ with SecureSession() as session:
 | ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------ |
 | Symlink Handling               | Fully supported; `follow_symlinks` honored     | Some behaviors differ; tests skipped where behavior differs                    |
 | Sparse File Detection          | Heuristics applied                             | Sparse heuristics differ; warnings may differ                                  |
-| `chmod(0)` Permission Model | Enforced; deletion may raise `FileAccessError` | Behavior differs; some tests skipped                                           |
+| `chmod(0)` Permission Model    | Enforced; deletion may raise `FileAccessError` | Behavior differs; some tests skipped                                           |
 | SecureMemory Zeroing           | Zeroing observable in tests                    | Observing zeroing is unreliable due to Python memory copies and OS protections |
-| Memory Locking          | `mlock` available (libsodium recommended)                    | `VirtualLock` less effective; libsodium strongly preferred|
+| Memory Locking                 | `mlock` available (libsodium recommended)      | `VirtualLock` less effective; libsodium strongly preferred                     |
 
+* Immutable Python objects (`bytes`, `str`) cannot be zeroed. Prefer `bytearray` or `memoryview`
+* Libsodium recommended for locked memory
+* Always use `.close()` or context manager for memory zeroing
+* File system or OS limitations may prevent complete erasure on SSDs or COW filesystems
 
-* **Python Object Copies:** Immutable objects (`bytes`, `str`) cannot be zeroed. Prefer `bytearray` or `memoryview`.
-* **Libsodium Recommended:** Provides guarded pages and secure memory locking. Fallback works but less secure.
-* **Windows Memory Locking:** Pages cannot be made non-swappable without libsodium.
-* **Garbage Collector Timing:** Python may temporarily retain buffers in RAM.
-* **System Privileges:** Some OSes limit locked memory usage (e.g., `ulimit -l` on Linux).
-* **File System Limitations:** Overwriting may not fully erase data on COW filesystems (btrfs, ZFS, snapshots) or SSDs. Consider crypto-erase.
-* **OS-Level Erase:** `os_erase` functions are dangerous; use manually only with full understanding.
+---
 
+# Threat Model
 
-**Important Notes:**
-SecureWipe improves security but cannot defeat OS-level guarantee gaps or Python’s memory model. Important limitations:
+ZeroizePy provides high-assurance secure deletion primitives, but only within realistic limits of modern operating systems.
 
-**Python Memory Model**
-* Immutable types (bytes, str) cannot be zeroed.
-* Some objects may be copied by Python internally.
-* Use `bytearray` and `memoryview` for sensitive data.
+### ZeroizePy Defends Against:
 
-**Libsodium Recommended**
-* Libsodium Recommended
-* Enables non-swappable memory
-* Protects against overreads/overwrites
+* Forensic recovery of overwritten files
+* Accidental retention of plaintext in process memory
+* Recovery after cryptographic key destruction
+* Undeleted temp files and leaked memory buffers
+* Users mistakenly loading sensitive data into Python `bytes`
 
-**Filesystem Constraints**
-* SSDs, APFS/ZFS snapshots, btrfs COW, and journaling FSes may retain pre-image data.
-* Free-space wiping mitigates but does not guarantee full erasure.
-* For absolute erasure → cryptographic erase.
+### ZeroizePy cannot defend against:
 
-**Garbage Collection**
-* Python may temporarily retain freed buffers before reuse.
+* Full-disk snapshots (btrfs, ZFS, VM snapshots)
+* SSD wear-leveling remapping (overwriting does not guarantee physical erasure)
+* Kernel-level memory scanners
+* DMA attacks or root access attackers
+* Malware that runs inside the same Python process
+* Cloud-provider persistent block-level backups you do not control
 
-**OS-Level Erase**
-* Commands like hdparm and NVMe secure erase can brick disks.
-* Disabled by default; require explicit opt-in.
+### Partial Mitigations
 
-**Always zero and close secrets**
-* Use context managers or .close() to guarantee cleanup.
+| Risk                     | What ZeroizePy Does                        |
+|---------------------------|-------------------------------------------|
+| SSD wear-leveling         | Recommend crypto-erasure                  |
+| Python copies memory      | Encourages bytearray/memoryview           |
+| OS won’t allow locked pages | Falls back with warnings                 |
+| Hard failures during deletion | Raises FileAccessError                  |
 
 ---
 
@@ -207,11 +218,10 @@ SecureWipe improves security but cannot defeat OS-level guarantee gaps or Python
 pytest
 ```
 
-Some tests skip on Windows due to OS Differences.
+Some tests skip on Windows due to OS differences.
 
 ---
 
 # License
 
 MIT License — free for commercial, open-source, academic, and integrated use.
-
