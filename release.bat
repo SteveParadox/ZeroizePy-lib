@@ -2,7 +2,7 @@
 setlocal
 
 echo ==========================================
-echo   SECUREWIPE — Release Automation Script
+echo   ZEROIZEPY  — Release Automation Script
 echo ==========================================
 
 REM ---- Choose Upload Target ----
@@ -72,3 +72,4 @@ echo ==========================================
 
 endlocal
 exit /b 0
+
