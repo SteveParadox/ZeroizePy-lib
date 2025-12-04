@@ -1,5 +1,5 @@
 """
-securewipe.crypto
+zeroizepy.crypto
 -----------------
 
 Cryptographic erasure utilities: fast, reliable secure deletion by key destruction.

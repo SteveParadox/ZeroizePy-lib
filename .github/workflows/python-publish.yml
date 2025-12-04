@@ -1,4 +1,4 @@
-# GitHub Actions workflow: Build and publish SecureWipe Python package to PyPI
+# GitHub Actions workflow: Build and publish zeroizepy Python package to PyPI
 # Triggered on release published events
 # Docs: https://docs.github.com/en/actions/publishing-packages/publishing-python-packages
 
@@ -46,7 +46,7 @@ jobs:
     environment:
       name: pypi
       # Optional: uncomment if you want deployment status linked to PyPI
-      # url: https://pypi.org/project/securewipe/${{ github.event.release.name }}
+      # url: https://pypi.org/project/zeroizepy/${{ github.event.release.name }}
 
     steps:
       - name: Download release artifacts

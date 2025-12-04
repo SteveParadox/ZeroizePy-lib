@@ -48,9 +48,9 @@ if errorlevel 1 (
 
 echo.
 echo Smoke testing installation...
-py -m pip uninstall -y securewipe >nul
-py -m pip install dist\securewipe-*.whl
-py -c "import securewipe; print('Version:', securewipe.__version__)"
+py -m pip uninstall -y zeroizepy >nul
+py -m pip install dist\zeroizepy-*.whl
+py -c "import zeroizepy; print('Version:', zeroizepy.__version__)"
 if errorlevel 1 (
     echo Smoke test failed!
     exit /b 1

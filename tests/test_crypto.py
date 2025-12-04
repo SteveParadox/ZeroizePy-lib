@@ -8,7 +8,7 @@ from zeroizepy.crypto import (
     cryptographic_erase_key,
     CipherText,
 )
-from securewipe.memory import SecureMemoryClosed
+from zeroizepy.memory import SecureMemoryClosed
 
 # ---------------------------------------------------------------------------
 # ------------------------ Normal behavior tests ---------------------------

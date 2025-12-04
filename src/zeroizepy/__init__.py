@@ -1,5 +1,5 @@
 """
-SecureWipe: Secure file deletion, memory zeroization, and cryptographic erasure tools.
+Zeroizepy: Secure file deletion, memory zeroization, and cryptographic erasure tools.
 """
 
 from .file import secure_delete, wipe_free_space

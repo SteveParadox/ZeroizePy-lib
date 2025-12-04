@@ -1,5 +1,5 @@
 """
-securewipe.utils
+zeroizepy.utils
 
 Convenience utilities for secure memory operations.
 """

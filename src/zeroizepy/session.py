@@ -1,5 +1,5 @@
 """
-securewipe.session
+zeroizepy.session
 ------------------
 
 High-level context manager for secure sessions:

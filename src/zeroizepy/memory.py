@@ -1,6 +1,6 @@
-# securewipe/memory.py
+# zeroizepy/memory.py
 """
-securewipe.memory
+zeroizepy.memory
 -----------------
 
 High-level secure memory API used by tests.

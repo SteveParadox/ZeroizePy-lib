@@ -1,5 +1,5 @@
 """
-securewipe.os_erase
+zeroizepy.os_erase
 -------------------
 
 Wrappers for OS-level secure erase operations.

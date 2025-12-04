@@ -1,5 +1,5 @@
 """
-securewipe._sodium
+zeroizepy._sodium
 ------------------
 
 Shim for libsodium allocation functions.

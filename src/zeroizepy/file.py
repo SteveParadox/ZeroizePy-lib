@@ -1,5 +1,5 @@
 """
-securewipe.file
+zeroizepy.file
 ----------------
 
 Hardened secure deletion utilities.
