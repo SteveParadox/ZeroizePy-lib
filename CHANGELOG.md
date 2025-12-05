@@ -1,3 +1,7 @@
+## [v1.1.1] – 2025-12-05
+### Added
+- (Describe changes here)
+
 # CHANGELOG
 
 All notable changes to **zeroizepy** will be documented in this file.
