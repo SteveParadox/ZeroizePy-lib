@@ -1,3 +1,7 @@
+## [v1.1.4] – 2025-12-06
+### Added
+- (Describe changes here)
+
 ## [v1.1.3] – 2025-12-05
 ### Added
 - (Describe changes here)
