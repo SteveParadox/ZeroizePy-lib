@@ -21,17 +21,13 @@ classifiers = [
     "Topic :: System :: Archiving",
 ]
 
-# Mandatory runtime dependencies
 dependencies = [
     "psutil>=5.9.0",
     "cryptography>=41.0.0"
 ]
 
-# Optional dependencies
 [project.optional-dependencies]
 crypto = ["pynacl>=1.5.0"]
-
-# Development & testing dependencies
 dev = [
     "pytest>=7.4.0",
     "hypothesis>=6.0.0",
@@ -51,6 +47,3 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 zeroizepy = ["*.so", "*.dll"]
-
-
-
